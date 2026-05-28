@@ -1,0 +1,219 @@
+from flask import Flask, render_template_string, request, redirect
+import sqlite3
+
+app = Flask(__name__)
+
+def init_db():
+
+    conn = sqlite3.connect("team.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS team (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            available INTEGER DEFAULT 0
+        )
+    """)
+
+    cursor.execute("SELECT COUNT(*) FROM team")
+
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+
+        users = [
+            ("Alice", 1),
+            ("Bob", 0),
+            ("Charlie", 1),
+            ("David", 0),
+            ("Emma", 1)
+        ]
+
+        cursor.executemany(
+            "INSERT INTO team (name, available) VALUES (?, ?)",
+            users
+        )
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+HTML_PAGE = """
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Team Availability Tracker</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 600px;
+            margin: 40px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .user-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafafa;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            border-left: 8px solid gray;
+        }
+
+        .available {
+            border-left-color: green;
+        }
+
+        .not-available {
+            border-left-color: red;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .on {
+            background: green;
+        }
+
+        .off {
+            background: red;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Team Availability Tracker</h1>
+
+        {% for user in users %}
+
+        <div class="user-card {% if user[2] == 1 %}available{% else %}not-available{% endif %}">
+
+            <div>
+
+                <h3>{{ user[1] }}</h3>
+
+                <div class="status">
+
+                    {% if user[2] == 1 %}
+                        Available
+                    {% else %}
+                        Not Available
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <form action="/toggle/{{ user[0] }}" method="POST">
+
+                {% if user[2] == 1 %}
+
+                <button class="on">
+                    Turn Off
+                </button>
+
+                {% else %}
+
+                <button class="off">
+                    Turn On
+                </button>
+
+                {% endif %}
+
+            </form>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</body>
+
+</html>
+
+"""
+
+@app.route('/')
+def home():
+
+    conn = sqlite3.connect("team.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM team")
+
+    users = cursor.fetchall()
+
+    conn.close()
+
+    return render_template_string(
+        HTML_PAGE,
+        users=users
+    )
+
+@app.route('/toggle/<int:user_id>', methods=['POST'])
+def toggle(user_id):
+
+    conn = sqlite3.connect("team.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT available FROM team WHERE id = ?",
+        (user_id,)
+    )
+
+    current = cursor.fetchone()[0]
+
+    new_value = 0 if current == 1 else 1
+
+    cursor.execute(
+        "UPDATE team SET available = ? WHERE id = ?",
+        (new_value, user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return redirect('/')
+
+if __name__ == '__main__':
+    app.run(debug=True)
