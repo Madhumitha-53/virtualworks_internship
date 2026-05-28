@@ -1,0 +1,185 @@
+from flask import Flask, render_template_string, request, redirect
+import sqlite3
+
+app = Flask(__name__)
+
+def init_db():
+
+    conn = sqlite3.connect("coffee.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS coffees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            votes INTEGER DEFAULT 0
+        )
+    """)
+
+    # Insert default coffee items if table is empty
+    cursor.execute("SELECT COUNT(*) FROM coffees")
+
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+
+        coffee_list = [
+            ("Espresso", 0),
+            ("Cappuccino", 0),
+            ("Latte", 0),
+            ("Mocha", 0),
+            ("Americano", 0)
+        ]
+
+        cursor.executemany(
+            "INSERT INTO coffees (name, votes) VALUES (?, ?)",
+            coffee_list
+        )
+
+    conn.commit()
+    conn.close()
+
+init_db()
+HTML_PAGE = """
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Coffee Rating Application</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 500px;
+            margin: 40px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .coffee-card {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+        }
+
+        .coffee-name {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .votes {
+            margin-top: 8px;
+            font-size: 18px;
+            color: #444;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: #6f4e37;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 15px;
+        }
+
+        button:hover {
+            background: #4e342e;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Coffee Rating Application</h1>
+
+        {% for coffee in coffees %}
+
+        <div class="coffee-card">
+
+            <div class="coffee-name">
+                {{ coffee[1] }}
+            </div>
+
+            <div class="votes">
+                Votes: {{ coffee[2] }}
+            </div>
+
+            <form action="/vote/{{ coffee[0] }}" method="POST">
+
+                <button type="submit">
+                    Vote
+                </button>
+
+            </form>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</body>
+
+</html>
+
+"""
+
+@app.route('/')
+def home():
+
+    conn = sqlite3.connect("coffee.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM coffees")
+
+    coffees = cursor.fetchall()
+
+    conn.close()
+
+    return render_template_string(
+        HTML_PAGE,
+        coffees=coffees
+    )
+@app.route('/vote/<int:coffee_id>', methods=['POST'])
+def vote(coffee_id):
+
+    conn = sqlite3.connect("coffee.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE coffees SET votes = votes + 1 WHERE id = ?",
+        (coffee_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return redirect('/')
+if __name__ == '__main__':
+    app.run(debug=True)
